@@ -1,16 +1,24 @@
 import streamlit as st
 import pandas as pd
 import gspread
+import json
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime, timedelta, date
 
 # --- CONFIGURATION ---
 def get_db_connection():
-    creds_dict = st.secrets["gcp_service_account"]
+    # 1. Load the big JSON string from secrets
+    json_str = st.secrets["gcp"]["service_account_json"]
+    
+    # 2. Convert it into a dictionary
+    creds_dict = json.loads(json_str)
+    
     SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/spreadsheets"]
+    
+    # 3. Authenticate using the dictionary
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, SCOPE)
     client = gspread.authorize(creds)
-    # YOUR SHEET URL
+    
     SHEET_URL = "https://docs.google.com/spreadsheets/d/1tNo2v2FWJUEj5cPg0MWk4UuqiCYNx9S63_-Ok3f54CM/edit"
     return client.open_by_url(SHEET_URL)
 
