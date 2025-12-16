@@ -20,7 +20,9 @@ def load_data(worksheet_name):
         worksheet = sheet.worksheet(worksheet_name)
         data = worksheet.get_all_records()
         return pd.DataFrame(data)
-    except:
+    except Exception as e:
+        # THIS IS NEW: It will print the exact error on your screen
+        st.error(f"⚠️ Connection Failed: {e}")
         return pd.DataFrame()
 
 def get_user_history(username):
