@@ -31,6 +31,35 @@ def load_data(worksheet_name):
     except:
         return pd.DataFrame()
 
+def create_new_user(username, password, name):
+    """
+    Checks if user OR name exists. If not, adds them to 'Employees' tab.
+    """
+    try:
+        sheet = get_db_connection()
+        worksheet = sheet.worksheet("Employees")
+        
+        # Check for existing user or name
+        data = worksheet.get_all_records()
+        df = pd.DataFrame(data)
+        
+        if not df.empty:
+            # 1. Check Username
+            if username in df['Username'].astype(str).values:
+                return False, "❌ Error: Username already exists. Please login."
+            
+            # 2. Check Full Name (Case Insensitive)
+            # We convert everything to lowercase to match "John Smith" with "john smith"
+            existing_names = df['Name'].astype(str).str.lower().values
+            if name.lower() in existing_names:
+                return False, "❌ Error: An account with this Name already exists."
+            
+        # Add new user (Order: Username, Password, Name)
+        worksheet.append_row([username, password, name])
+        return True, "✅ Account created successfully!"
+    except Exception as e:
+        return False, f"Database Error: {e}"
+
 def get_user_history(username):
     df = load_data("Submissions")
     if df.empty: return {}
@@ -49,7 +78,6 @@ def get_user_history(username):
     return history
 
 def update_weekly_summary(username, week_start, total_hours, total_vacation):
-    """Updates the Weekly_Summaries tab."""
     try:
         sheet = get_db_connection()
         try:
@@ -123,35 +151,74 @@ def save_clean_data(new_entries, username, week_start):
 def main():
     st.set_page_config(page_title="Digital Minds Timesheet", layout="wide", page_icon="📝")
 
+    hide_st_style = """
+                <style>
+                #MainMenu {visibility: hidden;}
+                footer {visibility: hidden;}
+                header {visibility: hidden;}
+                </style>
+                """
+    st.markdown(hide_st_style, unsafe_allow_html=True)
+    
     if 'logged_in' not in st.session_state: st.session_state['logged_in'] = False
     
-    # --- LOGIN SCREEN ---
+    # --- AUTHENTICATION SCREEN ---
     if not st.session_state['logged_in']:
         col1, col2, col3 = st.columns([1,2,1])
         with col2:
-            # Try to show logo
             try:
                 st.image("logo.png", use_container_width=True)
             except:
                 st.header("Digital Minds Global Technologies")
             
-            st.title("🔒 Login")
-            username = st.text_input("Username")
-            password = st.text_input("Password", type="password")
-            if st.button("Login"):
-                try:
-                    users_df = load_data("Employees")
-                    if not users_df.empty:
-                        user = users_df[(users_df['Username'].astype(str) == username) & 
-                                        (users_df['Password'].astype(str) == password)]
-                        if not user.empty:
-                            st.session_state['logged_in'] = True
-                            st.session_state['username'] = username
-                            st.session_state['name'] = user.iloc[0]['Name']
-                            st.rerun()
-                        else: st.error("Invalid Username or Password")
-                    else: st.error("Database empty.")
-                except Exception as e: st.error(f"Login Error: {e}")
+            # TABS FOR LOGIN vs SIGN UP
+            tab1, tab2 = st.tabs(["🔒 Login", "👤 Create Account"])
+            
+            # --- TAB 1: LOGIN ---
+            with tab1:
+                with st.form("login_form"):
+                    username = st.text_input("Username")
+                    password = st.text_input("Password", type="password")
+                    submit_login = st.form_submit_button("Login")
+                    
+                    if submit_login:
+                        try:
+                            users_df = load_data("Employees")
+                            if not users_df.empty:
+                                user = users_df[(users_df['Username'].astype(str) == username) & 
+                                                (users_df['Password'].astype(str) == password)]
+                                if not user.empty:
+                                    st.session_state['logged_in'] = True
+                                    st.session_state['username'] = username
+                                    st.session_state['name'] = user.iloc[0]['Name']
+                                    st.rerun()
+                                else: st.error("Invalid Username or Password")
+                            else: st.error("Database empty.")
+                        except Exception as e: st.error(f"Login Error: {e}")
+
+            # --- TAB 2: SIGN UP ---
+            with tab2:
+                with st.form("signup_form"):
+                    st.write("New Employee Registration")
+                    new_name = st.text_input("Full Name")
+                    new_user = st.text_input("Create Username (Email)")
+                    new_pass = st.text_input("Create Password", type="password")
+                    submit_signup = st.form_submit_button("Create Account")
+                    
+                    if submit_signup:
+                        if new_name and new_user and new_pass:
+                            # CALL NEW VALIDATION FUNCTION
+                            success, msg = create_new_user(new_user, new_pass, new_name)
+                            if success:
+                                st.success(msg)
+                                st.session_state['logged_in'] = True
+                                st.session_state['username'] = new_user
+                                st.session_state['name'] = new_name
+                                st.rerun()
+                            else:
+                                st.error(msg)
+                        else:
+                            st.warning("Please fill in all fields.")
 
     # --- MAIN DASHBOARD ---
     else:
